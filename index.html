@@ -20,7 +20,7 @@
             align-items: center;
         }
         
-        /* 頂部導覽列 (包含登入按鈕) */
+        /* 頂部導覽列 */
         .header {
             width: 100%;
             max-width: 800px;
@@ -32,8 +32,11 @@
             width: auto;
             padding: 8px 15px;
             background-color: #555;
+            color: white;
+            border: none;
+            border-radius: 5px;
             font-size: 14px;
-            margin: 0;
+            cursor: pointer;
         }
         .header button:hover {
             background-color: #333;
@@ -73,7 +76,7 @@
             font-size: 16px;
             box-sizing: border-box;
         }
-        button {
+        .primary-btn {
             width: 100%;
             padding: 12px;
             background-color: #4CAF50;
@@ -85,7 +88,7 @@
             margin-top: 10px;
             transition: background-color 0.3s;
         }
-        button:hover {
+        .primary-btn:hover {
             background-color: #45a049;
         }
         #message {
@@ -116,8 +119,8 @@
         /* 管理員統計面板 */
         #adminPanel {
             display: none;
-            background-color: #fff3cd;
-            border: 1px solid #ffeeba;
+            max-width: 800px;
+            background-color: #fff;
         }
         .stat-box {
             display: flex;
@@ -125,12 +128,37 @@
             font-size: 20px;
             font-weight: bold;
             margin-bottom: 15px;
-            padding: 10px;
-            background: #fff;
+            padding: 15px;
+            background: #fff3cd;
             border-radius: 5px;
             border-left: 5px solid #ffc107;
         }
         .stat-box span { color: #d32f2f; }
+
+        /* 班級統計表格 */
+        .stat-table-container h3 {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .stat-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+        }
+        .stat-table th, .stat-table td {
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            text-align: center;
+        }
+        .stat-table th {
+            background-color: #f8f9fa;
+        }
+        .status-missing { color: #dc3545; font-weight: bold; }
+        .status-reported { color: #28a745; font-weight: bold; }
 
     </style>
 </head>
@@ -141,15 +169,20 @@
         <button id="topLoginBtn">管理員登入</button>
     </div>
 
-    <!-- 管理員統計面板 (登入後才會顯示) -->
+    <!-- 管理員統計面板 (登入後顯示) -->
     <div id="adminPanel" class="container">
-        <h2>📊 全校統計資料 (即時更新)</h2>
+        <h2>📊 全校各班回報統計 (即時更新)</h2>
+        
+        <!-- 總人數統計 -->
         <div class="stat-box">
-            全校應到總人數： <span id="totalExpected">0</span>
+            全校應到總數： <span id="totalExpected">0</span>
         </div>
         <div class="stat-box">
-            全校實到總人數： <span id="totalActual">0</span>
+            全校實到總數： <span id="totalActual">0</span>
         </div>
+
+        <!-- 各班級詳細表格將由 JS 動態生成並放入此處 -->
+        <div id="classStatsContainer" class="stat-table-container"></div>
     </div>
 
     <!-- 回報表單容器 -->
@@ -193,16 +226,16 @@
 
             <!-- 實施到人數 -->
             <div class="form-group">
-                <label for="actualNum">實到人數：</label>
-                <input type="number" id="actualNum" min="0" placeholder="請輸入實到人數" required>
+                <label for="actualNum">實施到人數：</label>
+                <input type="number" id="actualNum" min="0" placeholder="請輸入實施到人數" required>
             </div>
 
-            <button type="submit" id="submitBtn">送出回報</button>
+            <button type="submit" id="submitBtn" class="primary-btn">送出回報</button>
             <div id="message"></div>
         </form>
     </div>
 
-    <!-- 登入視窗 (預設隱藏) -->
+    <!-- 登入視窗 -->
     <div id="loginModal">
         <div class="login-box">
             <h3 style="text-align: center; margin-top: 0;">系統登入</h3>
@@ -212,8 +245,8 @@
             <div class="form-group">
                 <input type="password" id="passwordInput" placeholder="密碼">
             </div>
-            <button id="loginSubmitBtn">登入</button>
-            <button id="loginCancelBtn" style="background-color: #ccc; color: #333;">取消</button>
+            <button id="loginSubmitBtn" class="primary-btn">登入</button>
+            <button id="loginCancelBtn" class="primary-btn" style="background-color: #ccc; color: #333;">取消</button>
         </div>
     </div>
 
@@ -225,7 +258,7 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // --- 2. 班級資料 (讀取自 南山所有班級.xlsx) ---
+        // --- 2. 班級資料 (來源：南山所有班級.xlsx) ---
         const classData = {
             "國中一年級": ["457", "458", "459", "460", "461", "462", "463", "464", "465", "466", "467", "468", "469", "470", "471", "472", "473", "474", "475", "476", "477", "478", "479"],
             "國中二年級": ["433", "434", "435", "436", "437", "438", "439", "440", "441", "442", "443", "444", "445", "446", "447", "448", "449", "450", "451", "452", "453", "454", "455", "456"],
@@ -248,7 +281,7 @@
                 const key = system + grade;
                 const classes = classData[key];
                 if (classes) {
-                    classes.forEach(function(cls) {
+                    classes.forEach(cls => {
                         const option = document.createElement("option");
                         option.value = cls;
                         option.textContent = cls;
@@ -289,7 +322,7 @@
                 回報時間: new Date().toLocaleString()
             };
 
-            // 使用班級作為子節點 key，這樣同班級重複送出會覆蓋舊資料，避免統計重複計算
+            // 確保同班級資料覆蓋，避免重複統計
             database.ref('reports/' + className).set(reportData)
                 .then(() => {
                     messageDiv.textContent = "✅ 回報成功！";
@@ -308,11 +341,44 @@
                 });
         });
 
-        // --- 5. 登入與統計邏輯 ---
+        // --- 5. 登入與統計面板邏輯 ---
         let isLoggedIn = false;
+        let statsListener = null;
         const topLoginBtn = document.getElementById('topLoginBtn');
         const loginModal = document.getElementById('loginModal');
         const adminPanel = document.getElementById('adminPanel');
+
+        // 生成各班級統計表格結構
+        function buildStatsTables() {
+            const container = document.getElementById('classStatsContainer');
+            container.innerHTML = '';
+            
+            for (const grade in classData) {
+                let html = `<h3>${grade}</h3>
+                            <table class="stat-table">
+                                <thead>
+                                    <tr>
+                                        <th width="25%">班級</th>
+                                        <th width="25%">應到</th>
+                                        <th width="25%">實到</th>
+                                        <th width="25%">狀態</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+                                
+                classData[grade].forEach(cls => {
+                    // 預設填入 0 與 未回報
+                    html += `<tr>
+                                <td>${cls}</td>
+                                <td id="exp-${cls}">0</td>
+                                <td id="act-${cls}">0</td>
+                                <td id="status-${cls}" class="status-missing">未回報</td>
+                             </tr>`;
+                });
+                html += `</tbody></table>`;
+                container.innerHTML += html;
+            }
+        }
 
         // 開啟/關閉登入視窗
         topLoginBtn.addEventListener('click', () => {
@@ -321,11 +387,15 @@
                 isLoggedIn = false;
                 topLoginBtn.textContent = "管理員登入";
                 adminPanel.style.display = 'none';
+                if (statsListener) {
+                    database.ref('reports').off('value', statsListener); // 停止監聽資料庫
+                }
                 alert("已登出系統");
             } else {
                 loginModal.style.display = 'flex';
             }
         });
+        
         document.getElementById('loginCancelBtn').addEventListener('click', () => {
             loginModal.style.display = 'none';
         });
@@ -343,27 +413,51 @@
                 document.getElementById('usernameInput').value = "";
                 document.getElementById('passwordInput').value = "";
                 
-                // 開始監聽資料庫數據以計算總人數
+                // 登入成功後，建立表格結構並開始監聽資料
+                buildStatsTables();
                 startRealtimeStats();
             } else {
                 alert("帳號或密碼錯誤！");
             }
         });
 
-        // 即時統計功能
+        // 即時監聽與更新統計數據
         function startRealtimeStats() {
-            // 使用 on('value')，資料庫只要有更動，這邊就會自動重新計算
-            database.ref('reports').on('value', (snapshot) => {
+            statsListener = database.ref('reports').on('value', (snapshot) => {
                 let sumExpected = 0;
                 let sumActual = 0;
-                
-                snapshot.forEach(childSnapshot => {
-                    const data = childSnapshot.val();
-                    sumExpected += (data.應到人數 || 0);
-                    sumActual += (data.實施到人數 || 0);
-                });
+                const reportsData = snapshot.val() || {}; // 取得 Firebase 上的所有資料
 
-                // 更新畫面數字
+                // 遍歷所有預設班級，比對資料庫內容
+                for (const grade in classData) {
+                    classData[grade].forEach(cls => {
+                        const expEl = document.getElementById(`exp-${cls}`);
+                        const actEl = document.getElementById(`act-${cls}`);
+                        const statusEl = document.getElementById(`status-${cls}`);
+                        
+                        // 如果資料庫內有該班級的資料 (代表已回報)
+                        if (reportsData[cls]) {
+                            const expNum = parseInt(reportsData[cls].應到人數 || 0);
+                            const actNum = parseInt(reportsData[cls].實施到人數 || 0);
+                            
+                            expEl.textContent = expNum;
+                            actEl.textContent = actNum;
+                            statusEl.textContent = '已回報';
+                            statusEl.className = 'status-reported';
+                            
+                            sumExpected += expNum;
+                            sumActual += actNum;
+                        } else {
+                            // 如果資料庫內沒有，顯示尚未回報 (預設 0)
+                            expEl.textContent = '0';
+                            actEl.textContent = '0';
+                            statusEl.textContent = '未回報';
+                            statusEl.className = 'status-missing';
+                        }
+                    });
+                }
+
+                // 更新上方總人數
                 document.getElementById('totalExpected').textContent = sumExpected;
                 document.getElementById('totalActual').textContent = sumActual;
             });
