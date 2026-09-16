@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>921防震演練人數回報系統</title>
+    
+    <!-- 引入 Firebase V8 SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        body {
+            font-family: "Microsoft JhengHei", sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        /* 頂部導覽列 (包含登入按鈕) */
+        .header {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+        }
+        .header button {
+            width: auto;
+            padding: 8px 15px;
+            background-color: #555;
+            font-size: 14px;
+            margin: 0;
+        }
+        .header button:hover {
+            background-color: #333;
+        }
+
+        /* 內容容器 */
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        select, input[type="number"], input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #message {
+            text-align: center;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        .success { color: green; }
+        .error { color: red; }
+
+        /* 登入彈窗 */
+        #loginModal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .login-box {
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            width: 300px;
+        }
+        
+        /* 管理員統計面板 */
+        #adminPanel {
+            display: none;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+        }
+        .stat-box {
+            display: flex;
+            justify-content: space-between;
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #fff;
+            border-radius: 5px;
+            border-left: 5px solid #ffc107;
+        }
+        .stat-box span { color: #d32f2f; }
+
+    </style>
+</head>
+<body>
+
+    <!-- 右上角登入區域 -->
+    <div class="header">
+        <button id="topLoginBtn">管理員登入</button>
+    </div>
+
+    <!-- 管理員統計面板 (登入後才會顯示) -->
+    <div id="adminPanel" class="container">
+        <h2>📊 全校統計資料 (即時更新)</h2>
+        <div class="stat-box">
+            全校應到總人數： <span id="totalExpected">0</span>
+        </div>
+        <div class="stat-box">
+            全校實到總人數： <span id="totalActual">0</span>
+        </div>
+    </div>
+
+    <!-- 回報表單容器 -->
+    <div class="container" id="reportContainer">
+        <h2>921防震演練人數回報系統</h2>
+        <form id="reportForm">
+            <!-- 學制 -->
+            <div class="form-group">
+                <label for="schoolSystem">學制：</label>
+                <select id="schoolSystem" required>
+                    <option value="">請選擇學制</option>
+                    <option value="高中">高中</option>
+                    <option value="國中">國中</option>
+                </select>
+            </div>
+
+            <!-- 年級 -->
+            <div class="form-group">
+                <label for="grade">年級：</label>
+                <select id="grade" required>
+                    <option value="">請選擇年級</option>
+                    <option value="一年級">一年級</option>
+                    <option value="二年級">二年級</option>
+                    <option value="三年級">三年級</option>
+                </select>
+            </div>
+
+            <!-- 班級 -->
+            <div class="form-group">
+                <label for="className">班級：</label>
+                <select id="className" required>
+                    <option value="">請先選擇學制與年級</option>
+                </select>
+            </div>
+
+            <!-- 應到人數 -->
+            <div class="form-group">
+                <label for="expectedNum">應到人數：</label>
+                <input type="number" id="expectedNum" min="0" placeholder="請輸入應到人數" required>
+            </div>
+
+            <!-- 實施到人數 -->
+            <div class="form-group">
+                <label for="actualNum">實施到人數：</label>
+                <input type="number" id="actualNum" min="0" placeholder="請輸入實施到人數" required>
+            </div>
+
+            <button type="submit" id="submitBtn">送出回報</button>
+            <div id="message"></div>
+        </form>
+    </div>
+
+    <!-- 登入視窗 (預設隱藏) -->
+    <div id="loginModal">
+        <div class="login-box">
+            <h3 style="text-align: center; margin-top: 0;">系統登入</h3>
+            <div class="form-group">
+                <input type="text" id="usernameInput" placeholder="帳號">
+            </div>
+            <div class="form-group">
+                <input type="password" id="passwordInput" placeholder="密碼">
+            </div>
+            <button id="loginSubmitBtn">登入</button>
+            <button id="loginCancelBtn" style="background-color: #ccc; color: #333;">取消</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. Firebase 初始設定 ---
+        const firebaseConfig = {
+            databaseURL: "https://nasanshock-default-rtdb.firebaseio.com/"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // --- 2. 班級資料 (讀取自 南山所有班級.xlsx) ---
+        const classData = {
+            "國中一年級": ["457", "458", "459", "460", "461", "462", "463", "464", "465", "466", "467", "468", "469", "470", "471", "472", "473", "474", "475", "476", "477", "478", "479"],
+            "國中二年級": ["433", "434", "435", "436", "437", "438", "439", "440", "441", "442", "443", "444", "445", "446", "447", "448", "449", "450", "451", "452", "453", "454", "455", "456"],
+            "國中三年級": ["410", "411", "412", "413", "414", "415", "416", "417", "418", "419", "420", "421", "422", "423", "424", "425", "426", "427", "428", "429", "430", "431", "432"],
+            "高中一年級": ["普一忠", "普一孝", "普一仁", "普一愛", "普一信", "普一義", "普一和", "普一平", "普一新", "普一速", "普一實"],
+            "高中二年級": ["普二忠", "普二孝", "普二仁", "普二愛", "普二信", "普二義", "普二和", "普二平", "普二新", "普二速", "普二實"],
+            "高中三年級": ["普三忠", "普三孝", "普三仁", "普三愛", "普三信", "普三義", "普三和", "普三平", "普三新", "普三速", "普三實", "應三忠"]
+        };
+
+        // --- 3. 連動選單邏輯 ---
+        const schoolSystemSelect = document.getElementById("schoolSystem");
+        const gradeSelect = document.getElementById("grade");
+        const classNameSelect = document.getElementById("className");
+
+        function updateClassDropdown() {
+            const system = schoolSystemSelect.value;
+            const grade = gradeSelect.value;
+            classNameSelect.innerHTML = '<option value="">請選擇班級</option>';
+            if (system && grade) {
+                const key = system + grade;
+                const classes = classData[key];
+                if (classes) {
+                    classes.forEach(function(cls) {
+                        const option = document.createElement("option");
+                        option.value = cls;
+                        option.textContent = cls;
+                        classNameSelect.appendChild(option);
+                    });
+                }
+            } else {
+                classNameSelect.innerHTML = '<option value="">請先選擇學制與年級</option>';
+            }
+        }
+        schoolSystemSelect.addEventListener("change", updateClassDropdown);
+        gradeSelect.addEventListener("change", updateClassDropdown);
+
+        // --- 4. 表單送出寫入 Firebase ---
+        const reportForm = document.getElementById("reportForm");
+        const messageDiv = document.getElementById("message");
+        const submitBtn = document.getElementById("submitBtn");
+
+        reportForm.addEventListener("submit", function(e) {
+            e.preventDefault();
+            
+            const system = schoolSystemSelect.value;
+            const grade = gradeSelect.value;
+            const className = classNameSelect.value;
+            const expected = parseInt(document.getElementById("expectedNum").value);
+            const actual = parseInt(document.getElementById("actualNum").value);
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = "傳送中...";
+            messageDiv.textContent = "";
+
+            const reportData = {
+                學制: system,
+                年級: grade,
+                班級: className,
+                應到人數: expected,
+                實施到人數: actual,
+                回報時間: new Date().toLocaleString()
+            };
+
+            // 使用班級作為子節點 key，這樣同班級重複送出會覆蓋舊資料，避免統計重複計算
+            database.ref('reports/' + className).set(reportData)
+                .then(() => {
+                    messageDiv.textContent = "✅ 回報成功！";
+                    messageDiv.className = "success";
+                    reportForm.reset();
+                    updateClassDropdown();
+                })
+                .catch((error) => {
+                    console.error("寫入失敗:", error);
+                    messageDiv.textContent = "❌ 回報失敗，請確認網路或資料庫權限。";
+                    messageDiv.className = "error";
+                })
+                .finally(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = "送出回報";
+                });
+        });
+
+        // --- 5. 登入與統計邏輯 ---
+        let isLoggedIn = false;
+        const topLoginBtn = document.getElementById('topLoginBtn');
+        const loginModal = document.getElementById('loginModal');
+        const adminPanel = document.getElementById('adminPanel');
+
+        // 開啟/關閉登入視窗
+        topLoginBtn.addEventListener('click', () => {
+            if (isLoggedIn) {
+                // 執行登出
+                isLoggedIn = false;
+                topLoginBtn.textContent = "管理員登入";
+                adminPanel.style.display = 'none';
+                alert("已登出系統");
+            } else {
+                loginModal.style.display = 'flex';
+            }
+        });
+        document.getElementById('loginCancelBtn').addEventListener('click', () => {
+            loginModal.style.display = 'none';
+        });
+
+        // 登入驗證
+        document.getElementById('loginSubmitBtn').addEventListener('click', () => {
+            const user = document.getElementById('usernameInput').value;
+            const pass = document.getElementById('passwordInput').value;
+
+            if (user === '123' && pass === '123') {
+                isLoggedIn = true;
+                loginModal.style.display = 'none';
+                adminPanel.style.display = 'block';
+                topLoginBtn.textContent = "登出管理員";
+                document.getElementById('usernameInput').value = "";
+                document.getElementById('passwordInput').value = "";
+                
+                // 開始監聽資料庫數據以計算總人數
+                startRealtimeStats();
+            } else {
+                alert("帳號或密碼錯誤！");
+            }
+        });
+
+        // 即時統計功能
+        function startRealtimeStats() {
+            // 使用 on('value')，資料庫只要有更動，這邊就會自動重新計算
+            database.ref('reports').on('value', (snapshot) => {
+                let sumExpected = 0;
+                let sumActual = 0;
+                
+                snapshot.forEach(childSnapshot => {
+                    const data = childSnapshot.val();
+                    sumExpected += (data.應到人數 || 0);
+                    sumActual += (data.實施到人數 || 0);
+                });
+
+                // 更新畫面數字
+                document.getElementById('totalExpected').textContent = sumExpected;
+                document.getElementById('totalActual').textContent = sumActual;
+            });
+        }
+    </script>
+</body>
+</html>
